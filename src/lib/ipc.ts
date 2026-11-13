@@ -8,13 +8,13 @@ import type { AppErr, Caps, Estimate, JobEv, JobSpec, JobView, ProbeInfo, Profil
 export interface Ipc {
   caps: () => Promise<Caps>;
   probe: (path: string) => Promise<ProbeInfo>;
-  defaultOutput: (path: string, profile: Profile, longEdge: number, dir?: string) => Promise<string>;
+  defaultOutput: (path: string, profile: Profile, longEdge: number, dir?: string | null) => Promise<string>;
   estimate: (spec: JobSpec) => Promise<Estimate>;
   bench: (spec: JobSpec) => Promise<number | null>;
   enqueue: (spec: JobSpec) => Promise<JobView>;
   cancel: (id: string) => Promise<void>;
   listJobs: () => Promise<JobView[]>;
-  extractFrame: (path: string, time: number, fit?: [number, number]) => Promise<string>;
+  extractFrame: (path: string, time: number, fit?: [number, number] | null) => Promise<string>;
   reveal: (path: string) => Promise<void>;
   openPath: (path: string) => Promise<void>;
   getPrefs: () => Promise<Record<string, unknown>>;
@@ -22,7 +22,7 @@ export interface Ipc {
   pickFile: () => Promise<string | null>;
   pickFolder: () => Promise<string | null>;
   onJobEvent: (callback: (event: { id: string; ev: JobEv }) => void) => Promise<() => void>;
-  onFileDrop: (callback: (path: string) => void) => Promise<() => void>;
+  onFileDrop: (callback: (event: { hot: boolean; path: string | null }) => void) => Promise<() => void>;
   assetUrl: (path: string) => string;
 }
 
@@ -54,10 +54,18 @@ const tauri: Ipc = {
   },
   onJobEvent: (callback) => listen<{ id: string; ev: JobEv }>('job-event', (event) => callback(event.payload)),
   onFileDrop: (callback) =>
-    getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop') {
-        const path = event.payload.paths[0];
-        if (path) callback(path);
+    getCurrentWindow().onDragDropEvent(({ payload }) => {
+      switch (payload.type) {
+        case 'enter':
+        case 'over':
+          callback({ hot: true, path: null });
+          break;
+        case 'drop':
+          callback({ hot: false, path: payload.paths[0] ?? null });
+          break;
+        case 'leave':
+          callback({ hot: false, path: null });
+          break;
       }
     }),
   assetUrl: (path) => convertFileSrc(path),
