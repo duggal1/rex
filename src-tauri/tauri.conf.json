@@ -13,10 +13,11 @@
     "windows": [
       {
         "title": "Rex",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 960,
-        "minHeight": 620,
+        "width": 1080,
+        "height": 700,
+        "minWidth": 900,
+        "minHeight": 560,
+        "resizable": true,
         "backgroundColor": "#0A0A0A",
         "theme": "Dark",
         "dragDropEnabled": true

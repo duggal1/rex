@@ -42,12 +42,14 @@ Video processing runs on the user's machine. Rex does not upload source files to
 Video quality is hard to judge from a slider. A number can say "4K" without telling you whether the result looks better. Rex tries to make the cost and likely result visible before a long render starts.
 
 - Inspect the source and show its size, frame rate, color, and warnings.
-- Render a three-second preview and compare the source with the result.
+- Render a three-second preview around a frame one-quarter of the way into the video. Compare that frame with a draggable source-and-result wipe, or toggle A/B and zoom in.
 - Estimate output size and render time. Rex measures the selected pipeline on a short sample for its speed estimate.
 - Check which encoders run on the current machine. Disable export sizes that the selected encoder cannot produce.
 - Say when AI upscaling is unavailable or when resizing is all the job will do.
 
 The default keeps the source frame shape, frame rate, and audio. Controls exist when they change the result: output size, AI mode, motion smoothing, canvas, quality, and export format.
+
+Rex remembers the selected recipe, output folder, and motion preference on the machine. After a full render, you can compare a source still with the result at the same point in the video.
 
 Taste shows up in what the app refuses to promise. Upscaling can make a video easier to watch. It cannot restore details that were never captured.
 

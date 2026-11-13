@@ -627,6 +627,16 @@ button {
   -webkit-user-select: text;
 }
 
+@media (max-width: 1040px) {
+  .body.has-rail {
+    grid-template-columns: minmax(0, 1fr) var(--panel);
+  }
+
+  .body.has-rail > .rail {
+    display: none;
+  }
+}
+
 /* ───────────────────────── motion off ───────────────────────── */
 html[data-motion='off'] *,
 html[data-motion='off'] *::before,
