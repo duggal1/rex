@@ -25,15 +25,14 @@ export function Segmented<T extends string>(p: {
   options: { value: T; label: string; disabled?: boolean; hint?: string }[];
 }) {
   return (
-    <div className="seg" role="radiogroup" aria-label={p.label}>
+    <fieldset className="seg">
+      <legend className="sr-only">{p.label}</legend>
       {p.options.map((o) => (
         <button
           key={o.value}
           type="button"
-          role="radio"
           className="chip"
-          aria-checked={p.value === o.value}
-          aria-disabled={o.disabled || undefined}
+          aria-pressed={p.value === o.value}
           disabled={o.disabled}
           title={o.hint}
           onClick={() => !o.disabled && p.onChange(o.value)}
@@ -41,7 +40,7 @@ export function Segmented<T extends string>(p: {
           {o.label}
         </button>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
@@ -62,10 +61,11 @@ export function Pill(p: { tone?: 'info' | 'warn'; title?: string; children: Reac
 export function Meter({ value }: { value: number }) {
   const N = 40;
   const on = Math.round(Math.max(0, Math.min(1, value)) * N);
+  const segments = Array.from({ length: N }, (_, position) => ({ id: `segment-${position}`, position }));
   return (
     <div className="meter" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.max(0, Math.min(1, value)) * 100)}>
-      {Array.from({ length: N }, (_, i) => (
-        <i key={i} className={i < on ? `on b${Math.floor((i / N) * 4)}` : ''} />
+      {segments.map(({ id, position }) => (
+        <i key={id} className={position < on ? `on b${Math.floor((position / N) * 4)}` : ''} />
       ))}
     </div>
   );

@@ -28,7 +28,7 @@ export function PixelField({ mode, hot = false, progress = 0, cell = 10 }: Props
     >
       {pixels.map((pixel, index) => (
         <rect
-          key={index}
+          key={`${pixel.x}-${pixel.y}`}
           x={pixel.x}
           y={pixel.y}
           width={cell - 1}

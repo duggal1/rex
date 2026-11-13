@@ -46,9 +46,17 @@ pub enum Ev {
         #[serde(rename = "etaSec")]
         eta_sec: Option<f64>,
     },
-    Warn { code: String, text: String },
-    Done { out: String, stats: Stats },
-    Error { error: AppError },
+    Warn {
+        code: String,
+        text: String,
+    },
+    Done {
+        out: String,
+        stats: Stats,
+    },
+    Error {
+        error: AppError,
+    },
     Cancelled,
 }
 
@@ -98,22 +106,37 @@ fn even(v: f64) -> u32 {
 
 pub fn plan(spec: &JobSpec, p: &ProbeInfo, caps: &Caps, tools: &Tools) -> Result<Plan, AppError> {
     if spec.v != 1 {
-        return Err(AppError::new("E_UNSUPPORTED_INPUT", "This job request version is not supported."));
+        return Err(AppError::new(
+            "E_UNSUPPORTED_INPUT",
+            "This job request version is not supported.",
+        ));
     }
     if !caps.ffmpeg {
         return Err(AppError::new("E_NO_FFMPEG", "ffmpeg was not found."));
     }
     let start = spec.input.range.start_sec.max(0.0);
-    let end = spec.input.range.end_sec.unwrap_or(p.duration_sec).min(p.duration_sec);
+    let end = spec
+        .input
+        .range
+        .end_sec
+        .unwrap_or(p.duration_sec)
+        .min(p.duration_sec);
     let dur = end - start;
     if dur <= 0.04 {
-        return Err(AppError::new("E_UNSUPPORTED_INPUT", "This file has no readable duration."));
+        return Err(AppError::new(
+            "E_UNSUPPORTED_INPUT",
+            "This file has no readable duration.",
+        ));
     }
 
     let src_expr = format!("{}/{}", p.fps_num, p.fps_den);
     let (out_fps, out_expr, interp) = match spec.smooth.mode {
         SmoothMode::Off => (p.fps, src_expr.clone(), false),
-        SmoothMode::X2 => (p.fps * 2.0, format!("{}/{}", p.fps_num * 2, p.fps_den), true),
+        SmoothMode::X2 => (
+            p.fps * 2.0,
+            format!("{}/{}", p.fps_num * 2, p.fps_den),
+            true,
+        ),
         SmoothMode::Fps => {
             let f = spec.smooth.fps.clamp(24, 120);
             (f as f64, f.to_string(), (f as f64) > p.fps * 1.01)
@@ -125,7 +148,11 @@ pub fn plan(spec: &JobSpec, p: &ProbeInfo, caps: &Caps, tools: &Tools) -> Result
     let (dw, dh) = (p.display_width as f64, p.display_height as f64);
     let (w, h) = match spec.frame.canvas {
         Canvas::Original => {
-            if dw >= dh { (even(l), even(l * dh / dw)) } else { (even(l * dw / dh), even(l)) }
+            if dw >= dh {
+                (even(l), even(l * dh / dw))
+            } else {
+                (even(l * dw / dh), even(l))
+            }
         }
         Canvas::W16x9 => (even(l), even(l * 9.0 / 16.0)),
         Canvas::H9x16 => (even(l * 9.0 / 16.0), even(l)),
@@ -138,13 +165,18 @@ pub fn plan(spec: &JobSpec, p: &ProbeInfo, caps: &Caps, tools: &Tools) -> Result
         Profile::Edit => (&caps.encoders.edit, caps.max_edge.edit),
         Profile::Compat => (&caps.encoders.compat, caps.max_edge.compat),
     };
-    let encoder = enc
-        .clone()
-        .ok_or_else(|| AppError::new("E_ENCODER_LIMIT", "No working encoder was found for this export profile on this machine."))?;
+    let encoder = enc.clone().ok_or_else(|| {
+        AppError::new(
+            "E_ENCODER_LIMIT",
+            "No working encoder was found for this export profile on this machine.",
+        )
+    })?;
     if w.max(h) > max_edge {
         return Err(AppError::new(
             "E_ENCODER_LIMIT",
-            format!("The {encoder} encoder on this machine tops out at {max_edge} px on the long edge."),
+            format!(
+                "The {encoder} encoder on this machine tops out at {max_edge} px on the long edge."
+            ),
         ));
     }
 
@@ -169,7 +201,11 @@ pub fn plan(spec: &JobSpec, p: &ProbeInfo, caps: &Caps, tools: &Tools) -> Result
         }
     }
 
-    let q = if spec.encode.quality == Quality::Balanced { 0.65 } else { 1.0 };
+    let q = if spec.encode.quality == Quality::Balanced {
+        0.65
+    } else {
+        1.0
+    };
     let bpp = match spec.encode.profile {
         Profile::Share => 0.06 * q,
         Profile::Compat => 0.10 * q,
@@ -201,7 +237,11 @@ pub fn plan(spec: &JobSpec, p: &ProbeInfo, caps: &Caps, tools: &Tools) -> Result
 // ───────────────────────── filters & args ─────────────────────────
 
 fn pix_fmt(p: Profile) -> &'static str {
-    if p == Profile::Edit { "yuv422p10le" } else { "yuv420p" }
+    if p == Profile::Edit {
+        "yuv422p10le"
+    } else {
+        "yuv420p"
+    }
 }
 
 pub fn cleanup_chain(p: &ProbeInfo, plan: &Plan, rgb: bool) -> String {
@@ -248,7 +288,10 @@ pub fn compose_chain(plan: &Plan, fill: Fill, pix: &str, inl: &str, outl: &str) 
 }
 
 fn base() -> Vec<String> {
-    ["-hide_banner", "-nostdin", "-y", "-v", "error"].iter().map(|s| s.to_string()).collect()
+    ["-hide_banner", "-nostdin", "-y", "-v", "error"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 fn a(v: &mut Vec<String>, xs: &[&str]) {
     v.extend(xs.iter().map(|s| s.to_string()));
@@ -270,8 +313,22 @@ fn venc_args(plan: &Plan, q: Quality) -> Vec<String> {
                 add(&["-vendor", "apl0"]);
             }
         }
-        "libx265" => add(&["-crf", if bal { "24" } else { "20" }, "-preset", "medium", "-tag:v", "hvc1"]),
-        "libx264" => add(&["-crf", if bal { "21" } else { "18" }, "-preset", "medium", "-profile:v", "high"]),
+        "libx265" => add(&[
+            "-crf",
+            if bal { "24" } else { "20" },
+            "-preset",
+            "medium",
+            "-tag:v",
+            "hvc1",
+        ]),
+        "libx264" => add(&[
+            "-crf",
+            if bal { "21" } else { "18" },
+            "-preset",
+            "medium",
+            "-profile:v",
+            "high",
+        ]),
         e if e.starts_with("hevc_") => {
             add(&["-b:v", &br, "-tag:v", "hvc1"]);
             if e == "hevc_nvenc" {
@@ -296,10 +353,19 @@ fn venc_args(plan: &Plan, q: Quality) -> Vec<String> {
 }
 
 fn color_args() -> Vec<String> {
-    ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+    [
+        "-colorspace",
+        "bt709",
+        "-color_primaries",
+        "bt709",
+        "-color_trc",
+        "bt709",
+        "-color_range",
+        "tv",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 fn audio_args(p: &ProbeInfo, profile: Profile) -> Vec<String> {
@@ -342,12 +408,22 @@ fn classify(tail: &str, fallback: &'static str) -> AppError {
     };
     let lines: Vec<&str> = tail.lines().collect();
     let msg = lines[lines.len().saturating_sub(4)..].join("\n");
-    AppError::new(code, if msg.is_empty() { "The process exited with an error.".to_string() } else { msg })
+    AppError::new(
+        code,
+        if msg.is_empty() {
+            "The process exited with an error.".to_string()
+        } else {
+            msg
+        },
+    )
 }
 
 impl Proc {
     pub fn new() -> Self {
-        Self { slot: Arc::new(Mutex::new(None)), cancel: Arc::new(AtomicBool::new(false)) }
+        Self {
+            slot: Arc::new(Mutex::new(None)),
+            cancel: Arc::new(AtomicBool::new(false)),
+        }
     }
 
     pub fn cancel(&self) {
@@ -357,16 +433,23 @@ impl Proc {
         }
     }
 
-    fn start(&self, mut cmd: Command, pipe: bool) -> Result<(Option<ChildStdout>, JoinHandle<String>), AppError> {
+    fn start(
+        &self,
+        mut cmd: Command,
+        pipe: bool,
+    ) -> Result<(Option<ChildStdout>, JoinHandle<String>), AppError> {
         if self.cancel.load(Ordering::SeqCst) {
             return Err(AppError::cancelled());
         }
         cmd.stdin(Stdio::null())
             .stderr(Stdio::piped())
             .stdout(if pipe { Stdio::piped() } else { Stdio::null() });
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| AppError::new("E_NO_FFMPEG", format!("Could not start a helper process: {e}")))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            AppError::new(
+                "E_NO_FFMPEG",
+                format!("Could not start a helper process: {e}"),
+            )
+        })?;
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         *self.slot.lock().unwrap() = Some(child);
@@ -388,7 +471,12 @@ impl Proc {
         Ok((stdout, h))
     }
 
-    fn wait(&self, h: JoinHandle<String>, tick: &mut dyn FnMut(), fallback: &'static str) -> Result<(), AppError> {
+    fn wait(
+        &self,
+        h: JoinHandle<String>,
+        tick: &mut dyn FnMut(),
+        fallback: &'static str,
+    ) -> Result<(), AppError> {
         let status = loop {
             let res = {
                 let mut g = self.slot.lock().unwrap();
@@ -402,7 +490,7 @@ impl Proc {
                         *g = None;
                         Some(Err(e))
                     }
-                    None => Some(Err(std::io::Error::new(std::io::ErrorKind::Other, "process lost"))),
+                    None => Some(Err(std::io::Error::other("process lost"))),
                 }
             };
             if let Some(r) = res {
@@ -422,7 +510,12 @@ impl Proc {
         }
     }
 
-    pub fn run_lines(&self, cmd: Command, mut on: impl FnMut(&str), fallback: &'static str) -> Result<(), AppError> {
+    pub fn run_lines(
+        &self,
+        cmd: Command,
+        mut on: impl FnMut(&str),
+        fallback: &'static str,
+    ) -> Result<(), AppError> {
         let (stdout, h) = self.start(cmd, true)?;
         if let Some(o) = stdout {
             for line in BufReader::new(o).lines().map_while(Result::ok) {
@@ -432,7 +525,12 @@ impl Proc {
         self.wait(h, &mut || {}, fallback)
     }
 
-    pub fn run_poll(&self, cmd: Command, mut tick: impl FnMut(), fallback: &'static str) -> Result<(), AppError> {
+    pub fn run_poll(
+        &self,
+        cmd: Command,
+        mut tick: impl FnMut(),
+        fallback: &'static str,
+    ) -> Result<(), AppError> {
         let (_, h) = self.start(cmd, false)?;
         self.wait(h, &mut tick, fallback)
     }
@@ -450,7 +548,13 @@ pub struct Ctx {
 
 impl Ctx {
     pub fn new(app: Option<AppHandle>, tools: Tools, proc: Proc, id: String) -> Self {
-        Self { app, tools, proc, id, started: Instant::now() }
+        Self {
+            app,
+            tools,
+            proc,
+            id,
+            started: Instant::now(),
+        }
     }
     pub fn ev(&self, ev: Ev) {
         if let Some(a) = &self.app {
@@ -463,8 +567,18 @@ impl Ctx {
         } else {
             frame as f64 / self.started.elapsed().as_secs_f64().max(0.001)
         };
-        let eta = if fps > 0.05 && total > frame { Some((total - frame) as f64 / fps) } else { None };
-        self.ev(Ev::Progress { stage: stage.into(), frame, total, fps, eta_sec: eta });
+        let eta = if fps > 0.05 && total > frame {
+            Some((total - frame) as f64 / fps)
+        } else {
+            None
+        };
+        self.ev(Ev::Progress {
+            stage: stage.into(),
+            frame,
+            total,
+            fps,
+            eta_sec: eta,
+        });
     }
     fn ff(&self, args: &[String]) -> Command {
         let mut c = command(&self.tools.ffmpeg);
@@ -474,8 +588,14 @@ impl Ctx {
 }
 
 fn partial_path(out: &Path) -> PathBuf {
-    let stem = out.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "out".into());
-    let ext = out.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "mp4".into());
+    let stem = out
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "out".into());
+    let ext = out
+        .extension()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "mp4".into());
     out.with_file_name(format!("{stem}.partial.{ext}"))
 }
 
@@ -493,7 +613,10 @@ fn clear_dir(d: &Path) -> Result<(), AppError> {
 pub fn execute(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan) -> Result<Stats, AppError> {
     let t0 = Instant::now();
     for wcode in &plan.warnings {
-        ctx.ev(Ev::Warn { code: wcode.clone(), text: warn_text(wcode).to_string() });
+        ctx.ev(Ev::Warn {
+            code: wcode.clone(),
+            text: warn_text(wcode).to_string(),
+        });
     }
     let out = PathBuf::from(&spec.encode.out);
     if let Some(dir) = out.parent() {
@@ -524,17 +647,35 @@ pub fn execute(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan) -> Result<
 }
 
 /// No AI: one ffmpeg process does cleanup, Lanczos, canvas, encode and audio.
-fn run_direct(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, out: &Path) -> Result<(), AppError> {
+fn run_direct(
+    ctx: &Ctx,
+    spec: &JobSpec,
+    p: &ProbeInfo,
+    plan: &Plan,
+    out: &Path,
+) -> Result<(), AppError> {
     let mut args = base();
-    a(&mut args, &["-progress", "pipe:1", "-nostats", "-stats_period", "0.5"]);
+    a(
+        &mut args,
+        &["-progress", "pipe:1", "-nostats", "-stats_period", "0.5"],
+    );
     if plan.start > 0.0 {
         a(&mut args, &["-ss", &format!("{:.6}", plan.start)]);
     }
-    a(&mut args, &["-t", &format!("{:.6}", plan.dur), "-i", &spec.input.path]);
+    a(
+        &mut args,
+        &["-t", &format!("{:.6}", plan.dur), "-i", &spec.input.path],
+    );
     let graph = format!(
         "[0:v:0]{}[cv];{}",
         cleanup_chain(p, plan, false),
-        compose_chain(plan, spec.frame.fill, pix_fmt(spec.encode.profile), "cv", "vout")
+        compose_chain(
+            plan,
+            spec.frame.fill,
+            pix_fmt(spec.encode.profile),
+            "cv",
+            "vout"
+        )
     );
     a(&mut args, &["-filter_complex", &graph, "-map", "[vout]"]);
     if p.has_audio {
@@ -554,7 +695,12 @@ fn run_direct(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, out: &Path)
             } else if let Some(v) = line.strip_prefix("fps=") {
                 fps = v.trim().parse().unwrap_or(fps);
             } else if line.starts_with("progress=") {
-                ctx.progress("encode", frame.min(plan.total_frames), plan.total_frames, fps);
+                ctx.progress(
+                    "encode",
+                    frame.min(plan.total_frames),
+                    plan.total_frames,
+                    fps,
+                );
             }
         },
         "E_ENCODER_LIMIT",
@@ -562,20 +708,35 @@ fn run_direct(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, out: &Path)
 }
 
 /// AI path: chunked decode → realesrgan (folder mode) → compose+encode segment → concat+mux audio.
-fn run_ai(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, out: &Path) -> Result<(), AppError> {
+fn run_ai(
+    ctx: &Ctx,
+    spec: &JobSpec,
+    p: &ProbeInfo,
+    plan: &Plan,
+    out: &Path,
+) -> Result<(), AppError> {
     let tmp = std::env::temp_dir().join(format!("rex-{}", ctx.id));
     let (din, dout, dseg) = (tmp.join("in"), tmp.join("out"), tmp.join("seg"));
     for d in [&din, &dout, &dseg] {
         fs::create_dir_all(d).map_err(|e| AppError::new("E_OUTPUT", e.to_string()))?;
     }
-    let res = ai_chunks(ctx, spec, p, plan, &din, &dout, &dseg).and_then(|n| mux(ctx, spec, p, plan, &dseg, n, out));
+    let res = ai_chunks(ctx, spec, p, plan, &din, &dout, &dseg)
+        .and_then(|n| mux(ctx, spec, p, plan, &dseg, n, out));
     let _ = fs::remove_dir_all(&tmp);
     res
 }
 
-fn ai_chunks(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, din: &Path, dout: &Path, dseg: &Path) -> Result<usize, AppError> {
+fn ai_chunks(
+    ctx: &Ctx,
+    spec: &JobSpec,
+    p: &ProbeInfo,
+    plan: &Plan,
+    din: &Path,
+    dout: &Path,
+    dseg: &Path,
+) -> Result<usize, AppError> {
     let total = plan.total_frames;
-    let n_chunks = (total + CHUNK - 1) / CHUNK;
+    let n_chunks = total.div_ceil(CHUNK);
     let model = plan.ai_model.clone().unwrap_or_default();
     let models = s(&ctx.tools.models);
     let mut segs = 0usize;
@@ -592,10 +753,19 @@ fn ai_chunks(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, din: &Path, 
         a(
             &mut args,
             &[
-                "-ss", &format!("{:.6}", t0), "-i", &spec.input.path, "-an",
-                "-vf", &cleanup_chain(p, plan, true),
-                "-frames:v", &want.to_string(),
-                "-compression_level", "1", "-start_number", "1",
+                "-ss",
+                &format!("{:.6}", t0),
+                "-i",
+                &spec.input.path,
+                "-an",
+                "-vf",
+                &cleanup_chain(p, plan, true),
+                "-frames:v",
+                &want.to_string(),
+                "-compression_level",
+                "1",
+                "-start_number",
+                "1",
                 &s(&din.join("%06d.png")),
             ],
         );
@@ -603,7 +773,10 @@ fn ai_chunks(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, din: &Path, 
         let got = count_files(din);
         if got == 0 {
             if k == 0 {
-                return Err(AppError::new("E_DECODE", "No frames could be decoded from the input."));
+                return Err(AppError::new(
+                    "E_DECODE",
+                    "No frames could be decoded from the input.",
+                ));
             }
             break;
         }
@@ -614,8 +787,18 @@ fn ai_chunks(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, din: &Path, 
         a(
             &mut ai,
             &[
-                "-i", &s(din), "-o", &s(dout), "-n", &model,
-                "-s", &plan.ai_scale.to_string(), "-m", &models, "-f", "png",
+                "-i",
+                &s(din),
+                "-o",
+                &s(dout),
+                "-n",
+                &model,
+                "-s",
+                &plan.ai_scale.to_string(),
+                "-m",
+                &models,
+                "-f",
+                "png",
             ],
         );
         let mut c = command(&ctx.tools.realesrgan);
@@ -646,11 +829,25 @@ fn ai_chunks(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, din: &Path, 
         a(
             &mut e,
             &[
-                "-framerate", &plan.out_fps_expr, "-start_number", "1",
-                "-i", &s(&dout.join("%06d.png")),
+                "-framerate",
+                &plan.out_fps_expr,
+                "-start_number",
+                "1",
+                "-i",
+                &s(&dout.join("%06d.png")),
                 "-filter_complex",
-                &compose_chain(plan, spec.frame.fill, pix_fmt(spec.encode.profile), "0:v:0", "vout"),
-                "-map", "[vout]", "-an", "-r", &plan.out_fps_expr,
+                &compose_chain(
+                    plan,
+                    spec.frame.fill,
+                    pix_fmt(spec.encode.profile),
+                    "0:v:0",
+                    "vout",
+                ),
+                "-map",
+                "[vout]",
+                "-an",
+                "-r",
+                &plan.out_fps_expr,
             ],
         );
         e.extend(venc_args(plan, spec.encode.quality));
@@ -663,12 +860,23 @@ fn ai_chunks(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, din: &Path, 
     Ok(segs)
 }
 
-fn mux(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, dseg: &Path, segs: usize, out: &Path) -> Result<(), AppError> {
+fn mux(
+    ctx: &Ctx,
+    spec: &JobSpec,
+    p: &ProbeInfo,
+    plan: &Plan,
+    dseg: &Path,
+    segs: usize,
+    out: &Path,
+) -> Result<(), AppError> {
     let list = dseg.join("list.txt");
     let mut txt = String::new();
     for i in 0..segs {
         let path = dseg.join(format!("{:05}.mkv", i));
-        txt.push_str(&format!("file '{}'\n", s(&path).replace('\\', "/").replace('\'', "'\\''")));
+        txt.push_str(&format!(
+            "file '{}'\n",
+            s(&path).replace('\\', "/").replace('\'', "'\\''")
+        ));
     }
     fs::write(&list, txt)?;
 
@@ -678,7 +886,19 @@ fn mux(ctx: &Ctx, spec: &JobSpec, p: &ProbeInfo, plan: &Plan, dseg: &Path, segs:
         if plan.start > 0.0 {
             a(&mut m, &["-ss", &format!("{:.6}", plan.start)]);
         }
-        a(&mut m, &["-t", &format!("{:.6}", plan.dur), "-i", &spec.input.path, "-map", "0:v:0", "-map", "1:a?"]);
+        a(
+            &mut m,
+            &[
+                "-t",
+                &format!("{:.6}", plan.dur),
+                "-i",
+                &spec.input.path,
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a?",
+            ],
+        );
     } else {
         a(&mut m, &["-map", "0:v:0"]);
     }

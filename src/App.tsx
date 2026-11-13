@@ -165,7 +165,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeJob?.id, activeJob?.out, activeJob?.outH, activeJob?.outW, activeJob?.state]);
+  }, [activeJob?.out, activeJob?.outH, activeJob?.outW, activeJob?.state]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

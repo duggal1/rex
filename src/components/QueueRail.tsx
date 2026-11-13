@@ -7,7 +7,7 @@ export function QueueRail({ jobs, onCancel }: { jobs: JobUI[]; onCancel: (id: st
     <aside className="rail">
       <h3 className="micro rail-h">(Queue)</h3>
       {jobs.map((j) => {
-        const f = j.progress && j.progress.total ? j.progress.frame / j.progress.total : j.state === 'done' ? 1 : 0;
+        const f = j.progress?.total ? j.progress.frame / j.progress.total : j.state === 'done' ? 1 : 0;
         const live = j.state === 'running' || j.state === 'queued';
         return (
           <div key={j.id} className="job">

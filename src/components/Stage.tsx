@@ -10,7 +10,7 @@ const STAGE: Record<string, string> = {
 
 export function RunStage({ job, preview, onCancel }: { job: JobUI; preview: boolean; onCancel: () => void }) {
   const pr = job.progress;
-  const frac = pr && pr.total ? pr.frame / pr.total : 0;
+  const frac = pr?.total ? pr.frame / pr.total : 0;
   const pct = Math.min(99, Math.floor(frac * 100));
   const label = job.state === 'queued' ? 'Waiting in the queue' : preview ? 'Rendering the 3 s preview' : STAGE[pr?.stage ?? ''] ?? 'Starting';
   return (
@@ -24,7 +24,7 @@ export function RunStage({ job, preview, onCancel }: { job: JobUI; preview: bool
         <p className="lead">{label}…</p>
         <p className="micro tnum">
           {pr
-            ? `${pr.frame.toLocaleString()} / ${pr.total.toLocaleString()} frames · ${pr.fps.toFixed(1)} fps · ${pr.etaSec != null ? fmtDur(pr.etaSec) + ' left' : 'estimating'}`
+            ? `${pr.frame.toLocaleString()} / ${pr.total.toLocaleString()} frames · ${pr.fps.toFixed(1)} fps · ${pr.etaSec != null ? `${fmtDur(pr.etaSec)} left` : 'estimating'}`
             : '(Waiting for the engine)'}
         </p>
         <Btn variant="ghost" onClick={onCancel}>

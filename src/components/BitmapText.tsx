@@ -16,8 +16,8 @@ export function BitmapText(p: { text: string; h?: number; bold?: boolean; fluid?
       aria-hidden={p.label ? undefined : true}
       style={{ display: 'block' }}
     >
-      {L.runs.map((r, i) => (
-        <rect key={i} x={r.x * 5} y={r.y * 4} width={r.w * 5} height={4.04} />
+      {L.runs.map((run) => (
+        <rect key={`${run.x}-${run.y}`} x={run.x * 5} y={run.y * 4} width={run.w * 5} height={4.04} />
       ))}
     </svg>
   );

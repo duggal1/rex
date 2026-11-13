@@ -99,7 +99,11 @@ impl Queue {
 
     pub fn list(&self) -> Vec<JobView> {
         let state = self.state.lock().unwrap();
-        state.order.iter().filter_map(|id| state.jobs.get(id).map(JobRec::view)).collect()
+        state
+            .order
+            .iter()
+            .filter_map(|id| state.jobs.get(id).map(JobRec::view))
+            .collect()
     }
 
     pub fn is_busy(&self) -> bool {
@@ -118,9 +122,10 @@ impl Queue {
                     return;
                 }
             }
-            state.active.as_ref().and_then(|(active_id, proc)| {
-                (active_id == id).then(|| proc.clone())
-            })
+            state
+                .active
+                .as_ref()
+                .and_then(|(active_id, proc)| (active_id == id).then(|| proc.clone()))
         };
         if let Some(proc) = active {
             proc.cancel();
@@ -162,7 +167,10 @@ impl Queue {
                     job.state = JobState::Done;
                     job.out = Some(job.spec.encode.out.clone());
                     job.stats = Some(stats.clone());
-                    Ev::Done { out: job.spec.encode.out.clone(), stats }
+                    Ev::Done {
+                        out: job.spec.encode.out.clone(),
+                        stats,
+                    }
                 }
                 Err(error) if error.code == "E_CANCELLED" => {
                     job.state = JobState::Cancelled;

@@ -16,7 +16,7 @@ pub struct ProbeInfo {
     pub path: String,
     pub container: String,
     pub duration_sec: f64,
-    pub width: u32,  // after rotation, before SAR
+    pub width: u32, // after rotation, before SAR
     pub height: u32,
     pub display_width: u32, // square-pixel
     pub display_height: u32,
@@ -44,17 +44,32 @@ fn st(v: &Value, k: &str) -> String {
     v[k].as_str().unwrap_or("").to_string()
 }
 fn ratio(t: &str) -> Option<(u32, u32)> {
-    let (a, b) = t.split_once(|c: char| c == '/' || c == ':')?;
+    let (a, b) = t.split_once(['/', ':'])?;
     let (a, b): (u32, u32) = (a.parse().ok()?, b.parse().ok()?);
-    if a > 0 && b > 0 { Some((a, b)) } else { None }
+    if a > 0 && b > 0 {
+        Some((a, b))
+    } else {
+        None
+    }
 }
 fn w(code: &str, text: &str) -> Warning {
-    Warning { code: code.into(), text: text.into() }
+    Warning {
+        code: code.into(),
+        text: text.into(),
+    }
 }
 
 pub fn probe(ffprobe: &Path, path: &str) -> Result<ProbeInfo, AppError> {
     let out = command(ffprobe)
-        .args(["-v", "error", "-print_format", "json", "-show_streams", "-show_format", path])
+        .args([
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_streams",
+            "-show_format",
+            path,
+        ])
         .output()
         .map_err(|e| AppError::new("E_NO_FFMPEG", format!("Could not run ffprobe: {e}")))?;
     if !out.status.success() {
@@ -67,12 +82,23 @@ pub fn probe(ffprobe: &Path, path: &str) -> Result<ProbeInfo, AppError> {
     let streams = j["streams"].as_array().cloned().unwrap_or_default();
     let vs = streams
         .iter()
-        .find(|s| s["codec_type"] == "video" && s["disposition"]["attached_pic"].as_i64().unwrap_or(0) == 0)
-        .ok_or_else(|| AppError::new("E_UNSUPPORTED_INPUT", "No video stream found in this file."))?;
+        .find(|s| {
+            s["codec_type"] == "video"
+                && s["disposition"]["attached_pic"].as_i64().unwrap_or(0) == 0
+        })
+        .ok_or_else(|| {
+            AppError::new("E_UNSUPPORTED_INPUT", "No video stream found in this file.")
+        })?;
 
-    let (cw, ch) = (vs["width"].as_u64().unwrap_or(0) as u32, vs["height"].as_u64().unwrap_or(0) as u32);
+    let (cw, ch) = (
+        vs["width"].as_u64().unwrap_or(0) as u32,
+        vs["height"].as_u64().unwrap_or(0) as u32,
+    );
     if cw == 0 || ch == 0 {
-        return Err(AppError::new("E_UNSUPPORTED_INPUT", "The video stream has no dimensions."));
+        return Err(AppError::new(
+            "E_UNSUPPORTED_INPUT",
+            "The video stream has no dimensions.",
+        ));
     }
 
     let mut rot: i64 = 0;
@@ -84,12 +110,19 @@ pub fn probe(ffprobe: &Path, path: &str) -> Result<ProbeInfo, AppError> {
         }
     }
     if rot == 0 {
-        if let Some(r) = vs["tags"]["rotate"].as_str().and_then(|r| r.parse::<i64>().ok()) {
+        if let Some(r) = vs["tags"]["rotate"]
+            .as_str()
+            .and_then(|r| r.parse::<i64>().ok())
+        {
             rot = r;
         }
     }
-    let rotation = (((rot % 360) + 360) % 360) as u32;
-    let (width, height) = if rotation == 90 || rotation == 270 { (ch, cw) } else { (cw, ch) };
+    let rotation = rot.rem_euclid(360) as u32;
+    let (width, height) = if rotation == 90 || rotation == 270 {
+        (ch, cw)
+    } else {
+        (cw, ch)
+    };
 
     let (sar_num, sar_den) = ratio(&st(vs, "sample_aspect_ratio")).unwrap_or((1, 1));
     let sar = sar_num as f64 / sar_den as f64;
@@ -116,7 +149,13 @@ pub fn probe(ffprobe: &Path, path: &str) -> Result<ProbeInfo, AppError> {
         "bt709" => "bt709",
         "smpte170m" | "bt470bg" => "bt601",
         "bt2020nc" | "bt2020c" => "bt2020",
-        _ => if ch <= 576 { "bt601" } else { "bt709" },
+        _ => {
+            if ch <= 576 {
+                "bt601"
+            } else {
+                "bt709"
+            }
+        }
     }
     .to_string();
     let trc = st(vs, "color_transfer");
@@ -136,22 +175,37 @@ pub fn probe(ffprobe: &Path, path: &str) -> Result<ProbeInfo, AppError> {
 
     let mut warnings = vec![];
     if interlaced {
-        warnings.push(w("interlaced_detected", "Interlaced source. Deinterlacing automatically."));
+        warnings.push(w(
+            "interlaced_detected",
+            "Interlaced source. Deinterlacing automatically.",
+        ));
     }
     if (sar - 1.0).abs() > 0.01 {
-        warnings.push(w("non_square_pixels", "Non-square pixels. Correcting the aspect ratio."));
+        warnings.push(w(
+            "non_square_pixels",
+            "Non-square pixels. Correcting the aspect ratio.",
+        ));
     }
     if rotation != 0 {
-        warnings.push(w("rotated", "Rotation metadata found. The output is rotated upright."));
+        warnings.push(w(
+            "rotated",
+            "Rotation metadata found. The output is rotated upright.",
+        ));
     }
     if vfr {
         warnings.push(w("vfr", "Variable frame rate. Converting to constant."));
     }
     if color_space.is_empty() && ch <= 576 {
-        warnings.push(w("sd_matrix", "Untagged SD video. Assuming BT.601 and converting to BT.709."));
+        warnings.push(w(
+            "sd_matrix",
+            "Untagged SD video. Assuming BT.601 and converting to BT.709.",
+        ));
     }
     if hdr {
-        warnings.push(w("hdr_unsupported", "HDR source. Output is SDR, so colors will look flat."));
+        warnings.push(w(
+            "hdr_unsupported",
+            "HDR source. Output is SDR, so colors will look flat.",
+        ));
     }
     if width.max(height) < 240 {
         warnings.push(w("tiny_source", "Very small source. Expect soft results."));

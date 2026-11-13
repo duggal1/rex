@@ -51,12 +51,21 @@ async fn probe_async(tools: &Tools, path: String) -> Result<ProbeInfo, AppError>
 
 fn human(b: u64) -> String {
     let g = b as f64 / 1e9;
-    if g >= 1.0 { format!("{g:.1} GB") } else { format!("{:.0} MB", b as f64 / 1e6) }
+    if g >= 1.0 {
+        format!("{g:.1} GB")
+    } else {
+        format!("{:.0} MB", b as f64 / 1e6)
+    }
 }
 
 fn free_space(dir: &Path) -> u64 {
     let canon = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
-    let canon = PathBuf::from(canon.to_string_lossy().trim_start_matches(r"\\?\").to_string());
+    let canon = PathBuf::from(
+        canon
+            .to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .to_string(),
+    );
     let Ok(disks) = sysinfo::Disks::new_with_refreshed_list() else {
         return u64::MAX;
     };
@@ -70,17 +79,31 @@ fn free_space(dir: &Path) -> u64 {
 
 fn preflight(spec: &JobSpec, plan: &pipeline::Plan) -> Result<(), AppError> {
     let out = PathBuf::from(&spec.encode.out);
-    let dir = out.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
-    fs::create_dir_all(&dir).map_err(|e| AppError::new("E_OUTPUT", format!("Can't create the output folder: {e}")))?;
+    let dir = out
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    fs::create_dir_all(&dir)
+        .map_err(|e| AppError::new("E_OUTPUT", format!("Can't create the output folder: {e}")))?;
     let probe_file = dir.join(".rex-write-test");
-    fs::write(&probe_file, b"x").map_err(|e| AppError::new("E_OUTPUT", format!("Can't write to the output folder: {e}")))?;
+    fs::write(&probe_file, b"x")
+        .map_err(|e| AppError::new("E_OUTPUT", format!("Can't write to the output folder: {e}")))?;
     let _ = fs::remove_file(&probe_file);
-    let need = (plan.est_bytes as f64 * 1.2) as u64 + if plan.ai_model.is_some() { 3_000_000_000 } else { 0 };
+    let need = (plan.est_bytes as f64 * 1.2) as u64
+        + if plan.ai_model.is_some() {
+            3_000_000_000
+        } else {
+            0
+        };
     let free = free_space(&dir);
     if free < need {
         return Err(AppError::new(
             "E_DISK_FULL",
-            format!("This needs about {} free and only {} is available.", human(need), human(free)),
+            format!(
+                "This needs about {} free and only {} is available.",
+                human(need),
+                human(free)
+            ),
         ));
     }
     Ok(())
@@ -99,14 +122,26 @@ pub async fn probe_file(state: State<'_, AppState>, path: String) -> Result<Prob
 }
 
 #[tauri::command]
-pub fn default_output(path: String, profile: Profile, long_edge: u32, dir: Option<String>) -> String {
+pub fn default_output(
+    path: String,
+    profile: Profile,
+    long_edge: u32,
+    dir: Option<String>,
+) -> String {
     let p = PathBuf::from(&path);
     let dir = dir
         .map(PathBuf::from)
         .or_else(|| p.parent().map(|d| d.to_path_buf()))
         .unwrap_or_default();
-    let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "video".into());
-    let ext = if profile == Profile::Edit { "mov" } else { "mp4" };
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "video".into());
+    let ext = if profile == Profile::Edit {
+        "mov"
+    } else {
+        "mp4"
+    };
     let mut n = 0;
     loop {
         let name = if n == 0 {
@@ -168,7 +203,11 @@ pub async fn bench(state: State<'_, AppState>, spec: JobSpec) -> Result<Option<f
     let mut s = spec.clone();
     s.preview = false;
     s.input.range.end_sec = Some(s.input.range.start_sec + 1.0);
-    let ext = if s.encode.profile == Profile::Edit { "mov" } else { "mp4" };
+    let ext = if s.encode.profile == Profile::Edit {
+        "mov"
+    } else {
+        "mp4"
+    };
     s.encode.out = std::env::temp_dir()
         .join(format!("rex-bench-{}.{ext}", uuid::Uuid::new_v4()))
         .to_string_lossy()
@@ -176,7 +215,14 @@ pub async fn bench(state: State<'_, AppState>, spec: JobSpec) -> Result<Option<f
     let plan = pipeline::plan(&s, &probe, &caps, &tools)?;
     let key = format!(
         "{:?}|{}x{}|{}x{}|{:.2}|{}|{:?}",
-        plan.ai_model, probe.width, probe.height, plan.out_w, plan.out_h, plan.out_fps, plan.encoder, s.smooth.mode
+        plan.ai_model,
+        probe.width,
+        probe.height,
+        plan.out_w,
+        plan.out_h,
+        plan.out_fps,
+        plan.encoder,
+        s.smooth.mode
     );
     if let Some(f) = state.bench.lock().unwrap().get(&key) {
         return Ok(Some(*f));
@@ -185,9 +231,11 @@ pub async fn bench(state: State<'_, AppState>, spec: JobSpec) -> Result<Option<f
     let out = s.encode.out.clone();
     let ctx = Ctx::new(None, tools, Proc::new(), "bench".into());
     let t = Instant::now();
-    let r = tauri::async_runtime::spawn_blocking(move || pipeline::execute(&ctx, &s, &probe, &plan).map(|_| ()))
-        .await
-        .map_err(join_err)?;
+    let r = tauri::async_runtime::spawn_blocking(move || {
+        pipeline::execute(&ctx, &s, &probe, &plan).map(|_| ())
+    })
+    .await
+    .map_err(join_err)?;
     let _ = fs::remove_file(&out);
     if r.is_err() {
         return Ok(None);
@@ -198,7 +246,11 @@ pub async fn bench(state: State<'_, AppState>, spec: JobSpec) -> Result<Option<f
 }
 
 #[tauri::command]
-pub async fn enqueue(app: AppHandle, state: State<'_, AppState>, spec: JobSpec) -> Result<JobView, AppError> {
+pub async fn enqueue(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    spec: JobSpec,
+) -> Result<JobView, AppError> {
     let caps = caps_of(&state).await?;
     let id = uuid::Uuid::new_v4().to_string();
     let mut spec = spec;
@@ -217,7 +269,16 @@ pub async fn enqueue(app: AppHandle, state: State<'_, AppState>, spec: JobSpec) 
     let probe = probe_async(&state.tools, spec.input.path.clone()).await?;
     let plan = pipeline::plan(&spec, &probe, &caps, &state.tools)?;
     preflight(&spec, &plan)?;
-    let rec = JobRec { id, spec, probe, plan, state: JobState::Queued, out: None, error: None, stats: None };
+    let rec = JobRec {
+        id,
+        spec,
+        probe,
+        plan,
+        state: JobState::Queued,
+        out: None,
+        error: None,
+        stats: None,
+    };
     Ok(state.queue.push(rec))
 }
 
@@ -241,7 +302,11 @@ pub async fn extract_frame(
     t: f64,
     fit: Option<(u32, u32)>,
 ) -> Result<String, AppError> {
-    let dir = app.path().app_cache_dir().map_err(|e| AppError::internal(e.to_string()))?.join("frames");
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| AppError::internal(e.to_string()))?
+        .join("frames");
     fs::create_dir_all(&dir)?;
     let out = dir.join(format!("{}.png", uuid::Uuid::new_v4()));
     let ff = state.tools.ffmpeg.clone();
@@ -261,7 +326,10 @@ pub async fn extract_frame(
     .await
     .map_err(join_err)??;
     if !r.status.success() {
-        return Err(AppError::new("E_DECODE", String::from_utf8_lossy(&r.stderr).trim().to_string()));
+        return Err(AppError::new(
+            "E_DECODE",
+            String::from_utf8_lossy(&r.stderr).trim().to_string(),
+        ));
     }
     Ok(out.to_string_lossy().to_string())
 }
@@ -275,11 +343,16 @@ pub fn reveal(path: String) -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
-        Command::new("explorer").raw_arg(format!("/select,\"{}\"", path)).spawn()?;
+        Command::new("explorer")
+            .raw_arg(format!("/select,\"{}\"", path))
+            .spawn()?;
     }
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     {
-        let dir = Path::new(&path).parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        let dir = Path::new(&path)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default();
         Command::new("xdg-open").arg(dir).spawn()?;
     }
     Ok(())
@@ -303,7 +376,10 @@ pub fn open_path(path: String) -> Result<(), AppError> {
 }
 
 fn prefs_path(app: &AppHandle) -> Result<PathBuf, AppError> {
-    let d = app.path().app_config_dir().map_err(|e| AppError::internal(e.to_string()))?;
+    let d = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| AppError::internal(e.to_string()))?;
     fs::create_dir_all(&d)?;
     Ok(d.join("prefs.json"))
 }

@@ -3,7 +3,11 @@ import type { Ipc } from './ipc';
 import type { JobEv, JobView, ProbeInfo } from './types';
 
 const listeners = new Set<(e: { id: string; ev: JobEv }) => void>();
-const emit = (id: string, ev: JobEv) => listeners.forEach((l) => l({ id, ev }));
+const emit = (id: string, ev: JobEv) => {
+  listeners.forEach((listener) => {
+    listener({ id, ev });
+  });
+};
 const jobs = new Map<string, JobView>();
 const timers = new Map<string, number>();
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));

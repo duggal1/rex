@@ -37,19 +37,19 @@ export function RecipePanel(p: Props) {
       : null;
   const locked = p.busy !== 'none';
   const pr = p.progress;
-  const frac = pr && pr.total ? pr.frame / pr.total : 0;
+  const frac = pr?.total ? pr.frame / pr.total : 0;
 
   return (
     <aside className={`recipe${locked ? ' locked' : ''}`}>
       <Field label="Size" note={honesty}>
-        <div className="seg wrap" role="radiogroup" aria-label="Size">
+        <fieldset className="seg wrap">
+          <legend className="sr-only">Size</legend>
           {SIZES.map((s) => (
             <button
               key={s.id}
               type="button"
-              role="radio"
               className="chip"
-              aria-checked={r.size === s.id}
+              aria-pressed={r.size === s.id}
               aria-disabled={(!!caps && s.edge > max) || undefined}
               disabled={!!caps && s.edge > max}
               title={caps && s.edge > max ? `This Mac or PC can't encode ${s.label} with this export.` : undefined}
@@ -58,7 +58,7 @@ export function RecipePanel(p: Props) {
               {s.label}
             </button>
           ))}
-        </div>
+        </fieldset>
       </Field>
 
       <Field label="Mode" note={r.mode === 'fast' ? 'AI 2×, then Lanczos to size.' : 'AI up to 4×. Slower, cleaner.'}>

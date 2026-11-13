@@ -31,7 +31,13 @@ export function useJobs() {
           }
         });
       })
-      .then((u) => (dead ? u() : (un = u)));
+      .then((unlisten) => {
+        if (dead) {
+          unlisten();
+          return;
+        }
+        un = unlisten;
+      });
     return () => {
       dead = true;
       un?.();

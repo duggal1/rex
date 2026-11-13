@@ -12,8 +12,15 @@ pub struct Tools {
 }
 
 fn sidecar(name: &str) -> PathBuf {
-    let file = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
-    if let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+    let file = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
+    if let Some(dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    {
         let p = dir.join(&file);
         if p.is_file() {
             return p;
@@ -24,7 +31,9 @@ fn sidecar(name: &str) -> PathBuf {
 
 impl Tools {
     pub fn locate(resource_dir: Option<PathBuf>) -> Self {
-        let models = resource_dir.map(|d| d.join("models")).unwrap_or_else(|| PathBuf::from("models"));
+        let models = resource_dir
+            .map(|d| d.join("models"))
+            .unwrap_or_else(|| PathBuf::from("models"));
         Self {
             ffmpeg: sidecar("ffmpeg"),
             ffprobe: sidecar("ffprobe"),

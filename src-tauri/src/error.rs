@@ -21,7 +21,11 @@ impl AppError {
             "E_CANCELLED" => "Nothing to fix. You cancelled it.",
             _ => "Retry. If it keeps happening, copy the details and report it.",
         };
-        Self { code, msg: msg.into(), action }
+        Self {
+            code,
+            msg: msg.into(),
+            action,
+        }
     }
     pub fn cancelled() -> Self {
         Self::new("E_CANCELLED", "Job cancelled.")

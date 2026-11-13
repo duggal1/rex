@@ -7,7 +7,7 @@ export function fmtBytes(b: number) {
 }
 
 export function fmtDur(sec: number) {
-  if (!isFinite(sec)) return '—';
+  if (!Number.isFinite(sec)) return '—';
   if (sec < 60) return `${Math.max(1, Math.round(sec))} s`;
   const m = Math.round(sec / 60);
   if (m < 60) return `${m} min`;
